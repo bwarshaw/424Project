@@ -24,10 +24,66 @@ Ext.onReady(function() {
                     searchDagrsButton, fromDateField, toDateField,
                     searchNameLabel, searchNameField, searchTypeLabel,
                     searchTypeField, searchCommentLabel, searchCommentField,
-                    minSizeLabel, minSizeField, maxSizeLabel, maxSizeField]
+                    minSizeLabel, minSizeField, maxSizeLabel, maxSizeField,
+                    bulkLoadButton, bulkLoadField, removeDuplicatesButton,
+                    openTabButton, openTabField]
             }
         ]
     });
+});
+
+var openTabButton = Ext.create('Ext.Button', {
+    text: 'Open DAGR in tab',
+    handler: function() {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function()
+        {
+            if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
+            {
+                if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                    alert(xmlhttp.responseText);
+                } else {
+                    var newTab = initPanel(xmlhttp.responseText);
+                    tabInterface.add(newTab);
+                    tabInterface.setActiveTab(newTab);
+                }
+            }
+        };
+        xmlhttp.open("POST", url + "initTab", true);
+        var param = openTabField.getRawValue();
+        xmlhttp.send(param);
+    }
+});
+
+var openTabField = Ext.create('Ext.form.field.Text', {
+    id: "openTabField"
+});
+var removeDuplicatesButton = Ext.create('Ext.Button', {
+    text: 'Remove Duplicates',
+    handler: function() {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function()
+        {
+            if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
+            {
+                for (var treeId in selections) {
+                    var tree = Ext.getCmp(treeId);
+                    var dagrId = treeId.substring(8);
+                    tree.getStore().setRootNode(getTreeView(dagrId));
+                }
+                Ext.create('Ext.window.Window', {
+                    title: 'Records Condensed',
+                    height: 450,
+                    width: 600,
+                    layout: 'fit',
+                    overflowY: 'auto',
+                    html: formatString(xmlhttp.responseText)
+                }).show();
+            }
+        };
+        xmlhttp.open("GET", url + "removeDuplicates", true);
+        xmlhttp.send();
+    }
 });
 
 var searchOrphansButton = Ext.create('Ext.Button', {
@@ -43,7 +99,8 @@ var searchOrphansButton = Ext.create('Ext.Button', {
                     height: 450,
                     width: 600,
                     layout: 'fit',
-                    html: xmlhttp.responseText
+                    overflowY: 'auto',
+                    html: formatString(xmlhttp.responseText)
                 }).show();
             }
         };
@@ -65,7 +122,8 @@ var searchSterileButton = Ext.create('Ext.Button', {
                     height: 450,
                     width: 600,
                     layout: 'fit',
-                    html: xmlhttp.responseText
+                    overflowY: 'auto',
+                    html: formatString(xmlhttp.responseText)
                 }).show();
             }
         };
@@ -86,10 +144,14 @@ var createDagrButton = Ext.create('Ext.Button', {
         {
             if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
             {
-                alert(xmlhttp.responseText);
-                var newTab = initPanel(xmlhttp.responseText);
-                tabInterface.add(newTab);
-                tabInterface.setActiveTab(newTab);
+                if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                    alert(xmlhttp.responseText);
+                }
+                else {
+                    var newTab = initPanel(xmlhttp.responseText);
+                    tabInterface.add(newTab);
+                    tabInterface.setActiveTab(newTab);
+                }
             }
         };
         xmlhttp.open("POST", url + "createDagr", true);
@@ -177,7 +239,8 @@ var searchDagrsButton = Ext.create('Ext.Button', {
                     height: 450,
                     width: 600,
                     layout: 'fit',
-                    html: xmlhttp.responseText
+                    overflowY: 'auto',
+                    html: formatString(xmlhttp.responseText)
                 }).show();
             }
         };
@@ -207,6 +270,7 @@ function initPanel(dagrData) {
     var panel = Ext.create('Ext.panel.Panel', {
         title: name,
         id: guid,
+        closable: true,
         items: [createAddDagrButton(), createAddDagrField(guid),
             createAnnotateDagrButton(), createAnnotateDagrField(guid),
             createReachedDagrsButton(), createReachingDagrsButton(),
@@ -262,9 +326,13 @@ createAddDagrButton = function() {
             {
                 if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
                 {
-                    alert(xmlhttp.responseText);
-                    var tree = Ext.getCmp('treeView' + dagrId);
-                    tree.getStore().setRootNode(getTreeView(dagrId));
+                    if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                        alert(xmlhttp.responseText);
+                    }
+                    else {
+                        var tree = Ext.getCmp('treeView' + dagrId);
+                        tree.getStore().setRootNode(getTreeView(dagrId));
+                    }
                 }
             };
             var params = '?dagrId=' + encodeURIComponent(dagrId);
@@ -290,7 +358,8 @@ createReachedDagrsButton = function() {
                         height: 450,
                         width: 600,
                         layout: 'fit',
-                        html: xmlhttp.responseText
+                        overflowY: 'auto',
+                        html: formatString(xmlhttp.responseText)
                     }).show();
                 }
             };
@@ -315,7 +384,8 @@ createReachingDagrsButton = function() {
                         height: 450,
                         width: 600,
                         layout: 'fit',
-                        html: xmlhttp.responseText
+                        overflowY: 'auto',
+                        html: formatString(xmlhttp.responseText)
                     }).show();
                 }
             };
@@ -337,20 +407,26 @@ createRenameDagrButton = function() {
     var findReachingDagrsButton = Ext.create('Ext.Button', {
         text: 'Rename DAGR',
         handler: function() {
+            var dagrId = this.up('panel').getId();
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function()
             {
                 if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
                 {
-                    alert(xmlhttp.responseText);
+                    if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                        alert(xmlhttp.responseText);
+                    } else {
+                        Ext.getCmp(this.up('panel').getId()).setTitle(datafield);
+                        var tree = Ext.getCmp('treeView' + dagrId);
+                        tree.getStore().setRootNode(getTreeView(dagrId));
+                    }
                 }
             };
-            var params = '?dagrId=' + encodeURIComponent(this.up('panel').getId());
+            var params = '?dagrId=' + encodeURIComponent(dagrId);
             var datafield = Ext.getCmp('renameDagrField' + this.up('panel').getId()).getRawValue();
             params += '&name=' + encodeURIComponent(datafield);
             xmlhttp.open("GET", url + "renameDagr" + params, false);
             xmlhttp.send();
-            Ext.getCmp(this.up('panel').getId()).setTitle(datafield);
         }});
     return findReachingDagrsButton;
 };
@@ -445,4 +521,37 @@ getTreeView = function(dagrId) {
     xmlhttp.open("GET", url + "dagrView" + params, false);
     xmlhttp.send();
     return jsonObject;
+};
+
+
+var bulkLoadField = Ext.create('Ext.form.field.Text', {
+    id: "bulkLoadField"
+});
+
+var bulkLoadButton = Ext.create('Ext.Button', {
+    text: 'Bulk Load',
+    handler: function() {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function()
+        {
+            if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
+            {
+                if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                    alert(xmlhttp.responseText);
+                } else
+                {
+                    var newTab = initPanel(xmlhttp.responseText);
+                    tabInterface.add(newTab);
+                    tabInterface.setActiveTab(newTab);
+                }
+            }
+        };
+        xmlhttp.open("POST", url + "bulkLoad", true);
+        var param = bulkLoadField.getRawValue();
+        xmlhttp.send(param);
+    }
+});
+
+formatString = function(str) {
+    return str.replace(/@@@/g, '<br>');
 };

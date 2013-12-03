@@ -4,7 +4,9 @@
  */
 package rest;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.logging.Logger;
 import javax.ws.rs.*;
 import net.sf.json.JSONArray;
@@ -34,7 +36,19 @@ public class Webservice {
     @Path("/createDagr")
     public String createDagr(String name) {
         Dagr dagr = new Dagr(null, getUser(), name);
-        dbConn.createNewDagr(dagr);
+        if (!dbConn.createNewDagr(dagr)) {
+            return "Error: dagr with name " + name + " already exists";
+        }
+        return dagr.getDagrInfo().toString();
+    }
+
+    @POST
+    @Path("initTab")
+    public String initTab(String name) {
+        Dagr dagr = dbConn.findDagrGivenName(name, getUser());
+        if (dagr == null) {
+            return "Error: no dagr with name " + name;
+        }
         return dagr.getDagrInfo().toString();
     }
 
@@ -43,7 +57,19 @@ public class Webservice {
     @POST
     @Path("/bulkLoad")
     public String bulkLoad(String filePath) {
-        throw new UnsupportedOperationException("bulkLoad" + " " + filePath);
+        File rootFile = new File(filePath);
+        if (!rootFile.exists()) {
+            return "Error: " + filePath + " does not exist";
+        }
+        Dagr root = new Dagr(null, getUser(), filePath);
+        if (!dbConn.createNewDagr(root)) {
+            return "Error: dagr with name " + filePath + " already exists";
+        }
+        for (String file : BulkLoader.findAllFilesInTree(filePath)) {
+            Dagr fileDagr = new Dagr(file, getUser(), "");
+            dbConn.insertNewDagr(fileDagr, root.guid, false);
+        }
+        return root.getDagrInfo().toString();
     }
 
     /*   search db based on criteria passed
@@ -84,7 +110,12 @@ public class Webservice {
     @GET
     @Path("/removeDuplicates")
     public String removeDuplicates() {
-        throw new UnsupportedOperationException("removeDuplicates");
+        HashSet<String> duplicates = dbConn.removeDuplicates();
+        ArrayList<String> arrDuplicates = new ArrayList<String>();
+        for (String s : duplicates) {
+            arrDuplicates.add(s);
+        }
+        return encode(arrDuplicates);
     }
 
     /*
@@ -98,14 +129,27 @@ public class Webservice {
     @Path("/addDagr")
     public String addDagr(@QueryParam("dagrId") String dagrId, @QueryParam("path") String filePath) {
         String[] arr = filePath.split("\\.");
-        if (arr[arr.length - 1].equals("html")) {
-            throw new UnsupportedOperationException("creation of html dagr");
-        }
-        if(!filePath.contains("\\.") && !filePath.contains("/")) {
+        // user-created DAGR, check if it exists
+        if (!filePath.contains("\\.") && !filePath.contains("/")) {
             Dagr dagr = dbConn.findDagrGivenName(filePath, getUser());
-            dbConn.insertNewDagr(dagr, dagrId, true);
-            return "added dagr to dagr";
+            if (dagr == null) {
+                return "Error: dagr does not exist: " + filePath;
+            }
+            if (dbConn.insertNewDagr(dagr, dagrId, true)) {
+                return "added dagr to dagr";
+            } else {
+                return "cannot construct a dagr with loops: " + filePath + " has " + dagrId + " as a child";
+            }
         }
+
+        // check if local file, and if so check if it exists
+        if (!filePath.substring(0, 3).equals("http")) {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                return "Error: local file does not exist: " + filePath;
+            }
+        }
+
         Dagr dagr = new Dagr(filePath, getUser(), "");
         dbConn.insertNewDagr(dagr, dagrId, false);
         return "added document to dagr";
@@ -155,6 +199,9 @@ public class Webservice {
     @GET
     @Path("/renameDagr")
     public String renameDagr(@QueryParam("dagrId") String dagrId, @QueryParam("name") String name) {
+        if (dbConn.findDagrGivenName(name, getUser()) != null) {
+            return "Error: dagr with name " + name + " already exists";
+        }
         dbConn.renameDagr(dagrId, name);
         return "renamed DAGR";
     }
@@ -168,7 +215,7 @@ public class Webservice {
         JSONArray jsonArr = new JSONArray();
         jsonArr.add(root.treeView());
         json.put("children", jsonArr);
-        ((JSONObject )((JSONArray) json.get("children")).get(0)).put("expanded", true);
+        ((JSONObject) ((JSONArray) json.get("children")).get(0)).put("expanded", true);
         return json.toString();
     }
 

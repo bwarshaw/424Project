@@ -39,7 +39,10 @@ public class DBConnection {
      * Functions which write to the DB
      * ====================================================================
      */
-    public void createNewDagr(Dagr dagr) {
+    public boolean createNewDagr(Dagr dagr) {
+        if (findDagrGivenName(dagr.name, dagr.user) != null) {
+            return false;
+        }
         try {
             Statement s = conn.createStatement();
             String query = "insert into dagrs values(" + dagr.dbInputString() + ");";
@@ -49,8 +52,10 @@ public class DBConnection {
             s.close();
         } catch (SQLException sqe) {
             Webservice.logger.log(Level.SEVERE, null, sqe);
+            return false;
         }
         Webservice.logger.log(Level.INFO, "Inserted {0}", dagr.dbInputString());
+        return true;
     }
 
     /*
@@ -58,10 +63,15 @@ public class DBConnection {
      * if true, this dagr already exists in the database, so we don't need to
      * re-insert it; just set up the parent/child relationship in hasDagr table
      */
-    public void insertNewDagr(Dagr child, String parentId, boolean isDagr) {
+    public boolean insertNewDagr(Dagr child, String parentId, boolean isDagr) {
         try {
             Statement s = conn.createStatement();
             String query;
+            if (isDagr) {
+                if (findKids(child.guid).contains(parentId) || child.guid.equals(parentId)) {
+                    return false;
+                }
+            }
             if (!isDagr) {
                 query = "insert into dagrs values(" + child.dbInputString() + ");";
                 s.executeUpdate(query);
@@ -74,8 +84,10 @@ public class DBConnection {
             s.close();
         } catch (SQLException sqe) {
             Webservice.logger.log(Level.SEVERE, null, sqe);
+            return false;
         }
         Webservice.logger.log(Level.INFO, "Inserted {0} into {1}", new Object[]{child.guid, parentId});
+        return true;
     }
 
     public void deleteDagr(String dagrId) {
@@ -134,6 +146,9 @@ public class DBConnection {
             String dagrId = "";
             while (rs.next()) {
                 dagrId = rs.getString("guid");
+            }
+            if (dagrId.equals("")) {
+                return null;
             }
             Dagr retVal = buildTreeView(dagrId, user);
             s.close();
@@ -380,6 +395,56 @@ public class DBConnection {
         }
     }
 
+    public HashSet<String> removeDuplicates() {
+        HashSet<String> paths = findDuplicateRecords();
+        for (String record : paths) {
+            deleteDuplicateRecord(record);
+        }
+        return paths;
+    }
+
+    private HashSet<String> findDuplicateRecords() {
+        HashSet<String> duplicates = new HashSet<String>();
+        try {
+            Statement s = conn.createStatement();
+            String query = "select d1.path from dagrs d1, dagrs d2 ";
+            query += "where d1.guid != d2.guid and d1.path != 'null' and d1.path = d2.path;";
+            s.executeQuery(query);
+            ResultSet rs = s.getResultSet();
+            while (rs.next()) {
+                duplicates.add(rs.getString("path"));
+            }
+            rs.close();
+            s.close();
+        } catch (SQLException sqe) {
+            Webservice.logger.log(Level.SEVERE, null, sqe);
+            return null;
+        }
+        return duplicates;
+    }
+
+    private void deleteDuplicateRecord(String path) {
+        try {
+            Statement s = conn.createStatement();
+            String query = "delete from dagrs where path = '" + path + "';";
+            s.executeUpdate(query);
+            Dagr uniqueCopy = new Dagr(path, "", "");
+            String uniqueId = uniqueCopy.guid;
+            query = "insert into dagrs values(" + uniqueCopy.dbInputString() + ");";
+            s.executeUpdate(query);
+            query = "update hasUser set guid = '" + uniqueId + "' where guid not in (select guid from dagrs);";
+            s.executeUpdate(query);
+            query = "update hasDagr set parentId = '" + uniqueId + "' where parentId not in (select guid from dagrs);";
+            s.executeUpdate(query);
+            query = "update hasDagr set childId = '" + uniqueId + "' where childId not in (select guid from dagrs);";
+            s.executeUpdate(query);
+            Webservice.logger.log(Level.INFO, "Deleted duplicate record {0}", path);
+            s.close();
+        } catch (SQLException sqe) {
+            Webservice.logger.log(Level.SEVERE, null, sqe);
+        }
+    }
+
     public void clearDB() {
         try {
             Statement s = conn.createStatement();
@@ -396,39 +461,13 @@ public class DBConnection {
     public static void main(String args[]) throws Exception {
         DBConnection dbConn = new DBConnection("root", "root", "jdbc:mysql://localhost/MMDA");
         dbConn.clearDB();
-        Dagr myDagr = new Dagr(null, "bill", "firstDagr");
-        dbConn.createNewDagr(myDagr);
-        dbConn.renameDagr(myDagr.guid, "bills dagr");
-        dbConn.annotateDagr(myDagr.guid, "first dagr i tried creating");
-        Dagr subDagr = new Dagr("/home/bwarshaw/chromeTest/shell-icon.png", "bill", "");
-//        dbConn.insertNewDagr(subDagr, myDagr.guid);
-        long subDagrStart = System.currentTimeMillis();
-        dbConn.renameDagr(subDagr.guid, "subDagr");
-        Dagr subSubDagr = new Dagr("/home/bwarshaw/chromeTest/manifest.json", "bill", "");
-        //  dbConn.insertNewDagr(subSubDagr, subDagr.guid);
-//        dbConn.insertNewDagr(subSubDagr, myDagr.guid);
-        dbConn.renameDagr(subSubDagr.guid, "subSubDagr");
-        ArrayList<String> strings = dbConn.findParentDagrs(subSubDagr.guid);
-        for (String s : strings) {
-            System.out.println(s);
-        }
-        // dbConn.clearDB();
-        System.out.println();
-        String[] arr = new String[]{"first", "dagrr"};
-        ArrayList<String> searchResults = dbConn.searchByAttributes(null, null, null, null, "bill", null, null, arr);
-        for (String s : searchResults) {
-            System.out.println(s);
-        }
-        for (String s : dbConn.findChildDagrs(myDagr.guid)) {
-            System.out.println(s);
-        }
-        System.out.println();
-        for (String s : dbConn.findParentDagrs(subSubDagr.guid)) {
-            System.out.println(s);
-        }
-
-        System.out.println();
-        System.out.println(dbConn.buildTreeView(myDagr.guid, "bill").treeView());
+        Dagr billDagr = new Dagr(null, "bill", "bills dagr");
+        dbConn.createNewDagr(billDagr);
+        Dagr subDagr = new Dagr(null, "bill", "sub");
+        dbConn.createNewDagr(subDagr);
+        System.out.println(dbConn.insertNewDagr(subDagr, billDagr.guid, true));
+        System.out.println(dbConn.insertNewDagr(billDagr, billDagr.guid, true));
+        Dagr tree = dbConn.buildTreeView(billDagr.guid, "bill");
         dbConn.conn.close();
     }
 }

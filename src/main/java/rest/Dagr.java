@@ -4,12 +4,11 @@
  */
 package rest;
 
-import java.io.IOException;
+import java.io.File;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.UUID;
-import java.util.logging.Level;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 
@@ -35,7 +34,11 @@ public class Dagr {
 
     /*  used to build a new Dagr  */
     public Dagr(String filePath, String user, String name) {
-        this.date = System.currentTimeMillis();
+        if (filePath == null) {
+            this.date = System.currentTimeMillis();
+        } else {
+            this.date = getDateLastModified(filePath);
+        }
         this.guid = generateNewGuid();
         this.name = name;
         if (name.equals("")) {
@@ -131,7 +134,7 @@ public class Dagr {
     }
 
     /*
-     * Returns zero for a user-created Dagr
+     * Returns 0 for a user-created Dagr
      * -1 for a remote file
      * size of file for a local file
      */
@@ -142,21 +145,15 @@ public class Dagr {
         if (path.substring(0, 3).equals("http")) {
             return -1;
         }
-        try {
-            Process p = Runtime.getRuntime().exec("ls -l " + path);
-            String result = "";
-            while (true) {
-                int c = p.getInputStream().read();
-                if (c == -1) {
-                    break;
-                }
-                result += (char) c;
-            }
-            String[] arr = result.split(" ");
-            return Integer.parseInt(arr[4]);
-        } catch (IOException ioe) {
-            Webservice.logger.log(Level.SEVERE, null, ioe);
+        File file = new File(path);
+        return (int) file.length();
+    }
+    
+    private long getDateLastModified(String path) {
+        if(path.substring(0,3).equals("http")) {
+            throw new UnsupportedOperationException("date last modded of remote file");
         }
-        return 0;
+        File file = new File(path);
+        return file.lastModified();
     }
 }
