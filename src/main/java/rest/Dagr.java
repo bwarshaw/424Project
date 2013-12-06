@@ -5,10 +5,15 @@
 package rest;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.logging.Level;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 
@@ -45,6 +50,9 @@ public class Dagr {
             this.name = filePath;
         }
         this.type = getFileType(filePath);
+        if (type.length() > 10) {
+            this.type = "?";
+        }
         this.size = getFileSize(filePath);
         this.annotations = type;
         this.filePath = filePath;
@@ -78,25 +86,14 @@ public class Dagr {
         return s;
     }
 
-    /*  return a string that you can pass to the front end
-     each value in the string representation of a dagr is 
-     separated by '@@@'  */
-    public String uiString() {
-        String s = "";
-        s += guid + "@@@";
-        s += name + "@@@";
-        s += filePath + "@@@";
-        s += annotations + "@@@";
-        s += type + "@@@";
-        s += size + "@@@";
-        s += date;
-        return s;
-    }
-
     public JSONObject treeView() {
         JSONObject json = new JSONObject();
         json.put("text", name);
         json.put("guid", guid);
+        json.put("type", type);
+        json.put("date", df.format(date));
+        json.put("size", size);
+        json.put("annotations", annotations);
         if (children.isEmpty()) {
             json.put("leaf", true);
         } else {
@@ -111,13 +108,13 @@ public class Dagr {
 
     public JSONObject getDagrInfo() {
         JSONObject json = new JSONObject();
-        json.put("guid", guid);
         json.put("name", name);
-        json.put("filePath", filePath);
-        json.put("annotations", annotations);
+        json.put("guid", guid);
+        json.put("path", filePath);
         json.put("type", type);
         json.put("size", size + "");
         json.put("date", df.format(date));
+        json.put("annotations", annotations);
         return json;
     }
 
@@ -135,24 +132,48 @@ public class Dagr {
 
     /*
      * Returns 0 for a user-created Dagr
-     * -1 for a remote file
+     * hopefully size of file for remote file
      * size of file for a local file
      */
     private int getFileSize(String path) {
         if (path == null) {
             return 0;
         }
-        if (path.substring(0, 3).equals("http")) {
+        if (path.substring(0, 4).equals("http")) {
             return -1;
+//            try {
+//                HttpURLConnection connection = (HttpURLConnection) new URL(path).openConnection();
+//                int pageSize = connection.getContentLength();
+//                connection.disconnect();
+//                return pageSize;
+//            } catch (IOException ioe) {
+//                Webservice.logger.log(Level.SEVERE, null, ioe);
+//                return -1;
+//            }
         }
         File file = new File(path);
         return (int) file.length();
     }
-    
+
     private long getDateLastModified(String path) {
-        if(path.substring(0,3).equals("http")) {
-            throw new UnsupportedOperationException("date last modded of remote file");
+        if (path.substring(0, 4).equals("http")) {
+            return -1;
+//            try {
+//                HttpURLConnection connection = (HttpURLConnection) (new URL(path)).openConnection();
+//                connection.connect();
+//                long time = connection.getLastModified();
+//                connection.disconnect();
+//                if (time > 0) {
+//                    return time;
+//                } else {
+//                    return System.currentTimeMillis();
+//                }
+//            } catch (IOException ioe) {
+//                Webservice.logger.log(Level.SEVERE, null, ioe);
+//                return System.currentTimeMillis();
+//            }
         }
+
         File file = new File(path);
         return file.lastModified();
     }

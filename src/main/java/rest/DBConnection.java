@@ -159,11 +159,11 @@ public class DBConnection {
         }
     }
 
-    public ArrayList<String> searchByAttributes(String fromDate, String toDate, String name, String fileType, String user, String minSize, String maxSize, String[] keywords) {
+    public ArrayList<Dagr> searchByAttributes(String fromDate, String toDate, String name, String fileType, String user, String minSize, String maxSize, String[] keywords) {
         try {
-            ArrayList<String> dagrs = new ArrayList<String>();
+            ArrayList<Dagr> dagrs = new ArrayList<Dagr>();
             Statement s = conn.createStatement();
-            String query = "select name from dagrs, hasUser where dagrs.guid = hasUser.guid and user_name = '" + user + "'";
+            String query = "select distinct * from dagrs, hasUser where dagrs.guid = hasUser.guid and user_name = '" + user + "'";
             if (name != null && !name.equals("")) {
                 query += " and UPPER(name) like UPPER('%" + name + "%')";
             }
@@ -199,7 +199,7 @@ public class DBConnection {
             s.executeQuery(query);
             ResultSet rs = s.getResultSet();
             while (rs.next()) {
-                dagrs.add(rs.getString("name"));
+                dagrs.add(composeDagrFromRs(rs, user));
             }
             rs.close();
             s.close();
@@ -210,15 +210,15 @@ public class DBConnection {
         }
     }
 
-    public ArrayList<String> searchOrphans(String user) {
+    public ArrayList<Dagr> searchOrphans(String user) {
         try {
-            ArrayList<String> ids = new ArrayList<String>();
+            ArrayList<Dagr> ids = new ArrayList<Dagr>();
             Statement s = conn.createStatement();
-            String query = "select name from dagrs, hasUser where  dagrs.guid = hasUser.guid and hasUser.user_name = '" + user + "' and dagrs.guid not in (select childId from hasDagr);";
+            String query = "select distinct * from dagrs, hasUser where  dagrs.guid = hasUser.guid and hasUser.user_name = '" + user + "' and dagrs.guid not in (select childId from hasDagr);";
             s.executeQuery(query);
             ResultSet rs = s.getResultSet();
             while (rs.next()) {
-                ids.add(rs.getString("name"));
+                ids.add(composeDagrFromRs(rs, user));
             }
             rs.close();
             s.close();
@@ -229,15 +229,15 @@ public class DBConnection {
         }
     }
 
-    public ArrayList<String> searchSterile(String user) {
+    public ArrayList<Dagr> searchSterile(String user) {
         try {
-            ArrayList<String> ids = new ArrayList<String>();
+            ArrayList<Dagr> ids = new ArrayList<Dagr>();
             Statement s = conn.createStatement();
-            String query = "select name from dagrs, hasUser where  dagrs.guid = hasUser.guid and hasUser.user_name = '" + user + "' and dagrs.guid not in (select parentId from hasDagr);";
+            String query = "select distinct * from dagrs, hasUser where  dagrs.guid = hasUser.guid and hasUser.user_name = '" + user + "' and dagrs.guid not in (select parentId from hasDagr);";
             s.executeQuery(query);
             ResultSet rs = s.getResultSet();
             while (rs.next()) {
-                ids.add(rs.getString("name"));
+                ids.add(composeDagrFromRs(rs, user));
             }
             rs.close();
             s.close();
@@ -256,8 +256,7 @@ public class DBConnection {
             HashSet<String> ids = new HashSet<String>();
             HashSet<String> results = new HashSet<String>();
             Statement s = conn.createStatement();
-            String origQuery = "select childId from hasDagr where parentId = '";
-            String query = origQuery + dagrId + "';";
+            String query = "select childId from hasDagr where parentId = '" + dagrId + "';";
             s.executeQuery(query);
             ResultSet rs = s.getResultSet();
             while (rs.next()) {
@@ -271,6 +270,7 @@ public class DBConnection {
             for (String t : ids) {
                 results.addAll(findKids(t));
             }
+
             rs.close();
             s.close();
             return results;
@@ -280,9 +280,26 @@ public class DBConnection {
         }
     }
 
+    private ArrayList<String> directChildren(String dagrId) {
+        try {
+            ArrayList<String> children = new ArrayList<String>();
+            Statement s = conn.createStatement();
+            s.executeQuery("select childId from hasDagr where parentId = '" + dagrId + "';");
+            ResultSet rs = s.getResultSet();
+            while (rs.next()) {
+                children.add(rs.getString("childId"));
+            }
+            s.close();
+            return children;
+        } catch (SQLException sqe) {
+            Webservice.logger.log(Level.SEVERE, null, sqe);
+            return null;
+        }
+    }
     /*
      * Helper function for findParentDagrs
      */
+
     private HashSet<String> findParents(String dagrId) {
         try {
             HashSet<String> ids = new HashSet<String>();
@@ -312,39 +329,39 @@ public class DBConnection {
         }
     }
 
-    private String grabNameFromId(String id) {
+    public Dagr grabDagrFromId(String id, String user) {
         try {
             Statement s = conn.createStatement();
-            s.executeQuery("select name from dagrs where guid = '" + id + "';");
+            s.executeQuery("select distinct * from dagrs where guid = '" + id + "';");
             ResultSet rs = s.getResultSet();
-            String name = "";
+            Dagr dagr = null;
             while (rs.next()) {
-                name = rs.getString("name");
+                dagr = composeDagrFromRs(rs, user);
             }
             rs.close();
             s.close();
-            return name;
+            return dagr;
         } catch (SQLException sqe) {
             Webservice.logger.log(Level.SEVERE, null, sqe);
             return null;
         }
     }
 
-    public ArrayList<String> findChildDagrs(String dagrId) {
+    public ArrayList<Dagr> findChildDagrs(String dagrId, String user) {
         HashSet<String> ids = findKids(dagrId);
-        ArrayList<String> names = new ArrayList<String>();
+        ArrayList<Dagr> names = new ArrayList<Dagr>();
         for (String s : ids) {
-            names.add(grabNameFromId(s));
+            names.add(grabDagrFromId(s, user));
         }
         visitedReach.clear();
         return names;
     }
 
-    public ArrayList<String> findParentDagrs(String dagrId) {
+    public ArrayList<Dagr> findParentDagrs(String dagrId, String user) {
         HashSet<String> ids = findParents(dagrId);
-        ArrayList<String> names = new ArrayList<String>();
+        ArrayList<Dagr> names = new ArrayList<Dagr>();
         for (String s : ids) {
-            names.add(grabNameFromId(s));
+            names.add(grabDagrFromId(s, user));
         }
         visitedReach.clear();
         return names;
@@ -353,18 +370,11 @@ public class DBConnection {
     public Dagr buildTreeView(String dagrId, String user) {
         try {
             Statement s = conn.createStatement();
-            s.executeQuery("select * from dagrs where guid = '" + dagrId + "';");
+            s.executeQuery("select distinct * from dagrs where guid = '" + dagrId + "';");
             ResultSet rs = s.getResultSet();
             Dagr root = null;
             while (rs.next()) {
-                String guid = rs.getString("guid");
-                String name = rs.getString("name");
-                String type = rs.getString("type");
-                String annotations = rs.getString("annotations");
-                String path = rs.getString("path");
-                long date = rs.getLong("date");
-                int size = rs.getInt("size");
-                root = new Dagr(guid, name, annotations, type, path, user, date, size);
+                root = composeDagrFromRs(rs, user);
             }
             for (String id : directChildren(dagrId)) {
                 root.children.add(buildTreeView(id, user));
@@ -372,23 +382,6 @@ public class DBConnection {
             rs.close();
             s.close();
             return root;
-        } catch (SQLException sqe) {
-            Webservice.logger.log(Level.SEVERE, null, sqe);
-            return null;
-        }
-    }
-
-    private ArrayList<String> directChildren(String dagrId) {
-        try {
-            ArrayList<String> children = new ArrayList<String>();
-            Statement s = conn.createStatement();
-            s.executeQuery("select childId from hasDagr where parentId = '" + dagrId + "';");
-            ResultSet rs = s.getResultSet();
-            while (rs.next()) {
-                children.add(rs.getString("childId"));
-            }
-            s.close();
-            return children;
         } catch (SQLException sqe) {
             Webservice.logger.log(Level.SEVERE, null, sqe);
             return null;
@@ -445,29 +438,44 @@ public class DBConnection {
         }
     }
 
-    public void clearDB() {
+    private Dagr composeDagrFromRs(ResultSet rs, String user) {
         try {
-            Statement s = conn.createStatement();
-            s.executeUpdate("delete from hasUser where 1=1;");
-            s.executeUpdate("delete from hasDagr where 1=1;");
-            s.executeUpdate("delete from dagrs where 1=1;");
-            s.close();
+            String guid = rs.getString("guid");
+            String name = rs.getString("name");
+            String type = rs.getString("type");
+            String annotations = rs.getString("annotations");
+            String path = rs.getString("path");
+            long date = rs.getLong("date");
+            int size = rs.getInt("size");
+            return new Dagr(guid, name, annotations, type, path, user, date, size);
         } catch (SQLException sqe) {
             Webservice.logger.log(Level.SEVERE, null, sqe);
+            return null;
         }
-
     }
-
-    public static void main(String args[]) throws Exception {
-        DBConnection dbConn = new DBConnection("root", "root", "jdbc:mysql://localhost/MMDA");
-        dbConn.clearDB();
-        Dagr billDagr = new Dagr(null, "bill", "bills dagr");
-        dbConn.createNewDagr(billDagr);
-        Dagr subDagr = new Dagr(null, "bill", "sub");
-        dbConn.createNewDagr(subDagr);
-        System.out.println(dbConn.insertNewDagr(subDagr, billDagr.guid, true));
-        System.out.println(dbConn.insertNewDagr(billDagr, billDagr.guid, true));
-        Dagr tree = dbConn.buildTreeView(billDagr.guid, "bill");
-        dbConn.conn.close();
-    }
+//    public void clearDB() {
+//        try {
+//            Statement s = conn.createStatement();
+//            s.executeUpdate("delete from hasUser where 1=1;");
+//            s.executeUpdate("delete from hasDagr where 1=1;");
+//            s.executeUpdate("delete from dagrs where 1=1;");
+//            s.close();
+//        } catch (SQLException sqe) {
+//            Webservice.logger.log(Level.SEVERE, null, sqe);
+//        }
+//
+//    }
+//
+//    public static void main(String args[]) throws Exception {
+//        DBConnection dbConn = new DBConnection("root", "root", "jdbc:mysql://localhost/MMDA");
+//        dbConn.clearDB();
+//        Dagr billDagr = new Dagr(null, "bill", "bills dagr");
+//        dbConn.createNewDagr(billDagr);
+//        Dagr subDagr = new Dagr(null, "bill", "sub");
+//        dbConn.createNewDagr(subDagr);
+//        System.out.println(dbConn.insertNewDagr(subDagr, billDagr.guid, true));
+//        System.out.println(dbConn.insertNewDagr(billDagr, billDagr.guid, true));
+//        Dagr tree = dbConn.buildTreeView(billDagr.guid, "bill");
+//        dbConn.conn.close();
+//    }
 }

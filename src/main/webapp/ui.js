@@ -4,15 +4,29 @@ var selections = new Array();
 
 Ext.define('TreeModel', {
     extend: 'Ext.data.Model',
-    fields: ['text', 'guid']
+    fields: ['text', 'guid', 'type', 'date', 'size', 'annotations']
 });
 
+Ext.define('SingleDagrModel', {
+    extend: 'Ext.data.Model',
+    fields: [
+        {name: 'name', type: 'string'},
+        {name: 'guid', type: 'string'},
+        {name: 'path', type: 'string'},
+        {name: 'type', type: 'string'},
+        {name: 'size', type: 'string'},
+        {name: 'date', type: 'string'},
+        {name: 'annotations', type: 'string'}
+    ]
+});
 
 
 Ext.onReady(function() {
     var initConnReq = new XMLHttpRequest();
     initConnReq.open("POST", url + "initConnection", false);
     initConnReq.send();
+
+    Ext.tip.QuickTipManager.init();  // enable tooltips
 
     tabInterface = Ext.create('Ext.tab.Panel', {
         renderTo: document.body,
@@ -26,10 +40,38 @@ Ext.onReady(function() {
                     searchTypeField, searchCommentLabel, searchCommentField,
                     minSizeLabel, minSizeField, maxSizeLabel, maxSizeField,
                     bulkLoadButton, bulkLoadField, removeDuplicatesButton,
-                    openTabButton, openTabField]
+                    openTabButton, openTabField, htmlEditor, htmlEditorWriteButton]
             }
         ]
     });
+});
+
+var htmlEditor = Ext.create('Ext.form.HtmlEditor', {
+    width: 580,
+    height: 250,
+    frame: true
+});
+
+var htmlEditorWriteButton = Ext.create('Ext.Button', {
+    text: 'Save HTML',
+    handler: function() {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function()
+        {
+            if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
+            {
+                if (xmlhttp.responseText.substring(0, 5) === 'Error') {
+                    alert(xmlhttp.responseText);
+                }
+                else {
+                    initPanel(xmlhttp.responseText);
+                }
+            }
+        };
+        xmlhttp.open("POST", url + "saveHtml", true);
+        var param = htmlEditor.getValue();
+        xmlhttp.send(param);
+    }
 });
 
 var openTabButton = Ext.create('Ext.Button', {
@@ -43,9 +85,7 @@ var openTabButton = Ext.create('Ext.Button', {
                 if (xmlhttp.responseText.substring(0, 5) === 'Error') {
                     alert(xmlhttp.responseText);
                 } else {
-                    var newTab = initPanel(xmlhttp.responseText);
-                    tabInterface.add(newTab);
-                    tabInterface.setActiveTab(newTab);
+                    initPanel(xmlhttp.responseText);
                 }
             }
         };
@@ -77,7 +117,7 @@ var removeDuplicatesButton = Ext.create('Ext.Button', {
                     width: 600,
                     layout: 'fit',
                     overflowY: 'auto',
-                    html: formatString(xmlhttp.responseText)
+                    html: xmlhttp.responseText
                 }).show();
             }
         };
@@ -94,14 +134,8 @@ var searchOrphansButton = Ext.create('Ext.Button', {
         {
             if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
             {
-                Ext.create('Ext.window.Window', {
-                    title: 'Search Results - Orphaned DAGRs',
-                    height: 450,
-                    width: 600,
-                    layout: 'fit',
-                    overflowY: 'auto',
-                    html: formatString(xmlhttp.responseText)
-                }).show();
+                var resultWindow = createGridWindow('Orphan DAGRs', xmlhttp.responseText);
+                resultWindow.show();
             }
         };
         xmlhttp.open("GET", url + "searchOrphans", true);
@@ -117,14 +151,8 @@ var searchSterileButton = Ext.create('Ext.Button', {
         {
             if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
             {
-                Ext.create('Ext.window.Window', {
-                    title: 'Search Results - Sterile DAGRs',
-                    height: 450,
-                    width: 600,
-                    layout: 'fit',
-                    overflowY: 'auto',
-                    html: formatString(xmlhttp.responseText)
-                }).show();
+                var resultWindow = createGridWindow('Sterile DAGRs', xmlhttp.responseText);
+                resultWindow.show();
             }
         };
         xmlhttp.open("GET", url + "searchSterile", true);
@@ -148,9 +176,7 @@ var createDagrButton = Ext.create('Ext.Button', {
                     alert(xmlhttp.responseText);
                 }
                 else {
-                    var newTab = initPanel(xmlhttp.responseText);
-                    tabInterface.add(newTab);
-                    tabInterface.setActiveTab(newTab);
+                    initPanel(xmlhttp.responseText);
                 }
             }
         };
@@ -214,43 +240,29 @@ var maxSizeLabel = Ext.create('Ext.form.Label', {
 
 var searchCommentLabel = Ext.create('Ext.form.Label', {
     id: 'searchCommentLabel',
-    text: 'Keywords (split by ,)'
+    text: 'Keywords (split by comma)'
 });
 
 
 var searchDagrsButton = Ext.create('Ext.Button', {
     text: 'Search DAGRs',
     handler: function() {
-        var fromD = fromDateField.getRawValue();
-        var toD = toDateField.getRawValue();
-        var name = searchNameField.getRawValue();
-        var type = searchTypeField.getRawValue();
-        var comment = searchCommentField.getRawValue();
-        var keywords = comment.split(',');
-        var minSize = minSizeField.getRawValue();
-        var maxSize = maxSizeField.getRawValue();
         var xmlhttp = new XMLHttpRequest();
         xmlhttp.onreadystatechange = function()
         {
             if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
             {
-                Ext.create('Ext.window.Window', {
-                    title: 'Search Results',
-                    height: 450,
-                    width: 600,
-                    layout: 'fit',
-                    overflowY: 'auto',
-                    html: formatString(xmlhttp.responseText)
-                }).show();
+                var resultWindow = createGridWindow('Search Results', xmlhttp.responseText);
+                resultWindow.show();
             }
         };
-        var params = '?fromDate=' + encodeURIComponent(fromD);
-        params += '&toDate=' + encodeURIComponent(toD);
-        params += '&name=' + encodeURIComponent(name);
-        params += '&type=' + encodeURIComponent(type);
-        params += '&minSize=' + encodeURIComponent(minSize);
-        params += '&maxSize=' + encodeURIComponent(maxSize);
-        params += '&keywords=' + encodeURIComponent(keywords);
+        var params = '?fromDate=' + encodeURIComponent(fromDateField.getRawValue());
+        params += '&toDate=' + encodeURIComponent(toDateField.getRawValue());
+        params += '&name=' + encodeURIComponent(searchNameField.getRawValue());
+        params += '&type=' + encodeURIComponent(searchTypeField.getRawValue());
+        params += '&minSize=' + encodeURIComponent(minSizeField.getRawValue());
+        params += '&maxSize=' + encodeURIComponent(maxSizeField.getRawValue());
+        params += '&keywords=' + encodeURIComponent(searchCommentField.getRawValue().split(','));
         xmlhttp.open("GET", url + "searchDagr" + params, true);
         xmlhttp.send();
     }
@@ -262,10 +274,9 @@ var searchDagrsButton = Ext.create('Ext.Button', {
  * =======================================================================
  */
 function initPanel(dagrData) {
-    var jsonData = eval('(' + dagrData + ')');
-    var name = jsonData['name'];
-    var guid = jsonData['guid'];
-    var rootNode = getTreeView(guid);
+    var rootNode = eval('(' + dagrData + ')');
+    var name = rootNode['children'][0]['text'];
+    var guid = rootNode['children'][0]['guid'];
     var tree = createTreeView(guid, rootNode);
     var panel = Ext.create('Ext.panel.Panel', {
         title: name,
@@ -276,7 +287,8 @@ function initPanel(dagrData) {
             createReachedDagrsButton(), createReachingDagrsButton(),
             createRenameDagrButton(), createRenameDagrField(guid), createDeleteDagrButton(), tree]
     });
-    return panel;
+    tabInterface.add(panel);
+    tabInterface.setActiveTab(panel);
 }
 ;
 
@@ -353,14 +365,8 @@ createReachedDagrsButton = function() {
             {
                 if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
                 {
-                    Ext.create('Ext.window.Window', {
-                        title: 'Search Results - Reached DAGRs',
-                        height: 450,
-                        width: 600,
-                        layout: 'fit',
-                        overflowY: 'auto',
-                        html: formatString(xmlhttp.responseText)
-                    }).show();
+                    var resultWindow = createGridWindow('Ancestors', xmlhttp.responseText);
+                    resultWindow.show();
                 }
             };
             var params = '?dagrId=' + encodeURIComponent(this.up('panel').getId());
@@ -379,14 +385,8 @@ createReachingDagrsButton = function() {
             {
                 if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
                 {
-                    Ext.create('Ext.window.Window', {
-                        title: 'Search Results - Reaching DAGRs',
-                        height: 450,
-                        width: 600,
-                        layout: 'fit',
-                        overflowY: 'auto',
-                        html: formatString(xmlhttp.responseText)
-                    }).show();
+                    var resultWindow = createGridWindow('Children', xmlhttp.responseText);
+                    resultWindow.show();
                 }
             };
             var params = '?dagrId=' + encodeURIComponent(this.up('panel').getId());
@@ -416,7 +416,7 @@ createRenameDagrButton = function() {
                     if (xmlhttp.responseText.substring(0, 5) === 'Error') {
                         alert(xmlhttp.responseText);
                     } else {
-                        Ext.getCmp(this.up('panel').getId()).setTitle(datafield);
+                        Ext.getCmp(dagrId).setTitle(datafield);
                         var tree = Ext.getCmp('treeView' + dagrId);
                         tree.getStore().setRootNode(getTreeView(dagrId));
                     }
@@ -446,8 +446,8 @@ createDeleteDagrButton = function() {
                     secondxmlhttp.onreadystatechange = function() {
                         if (secondxmlhttp.readyState === 4 && secondxmlhttp.status === 200) {
                             var message = 'Deleting this DAGR will affect the following DAGRs.  Continue?';
-                            message += xmlhttp.responseText;
-                            message += secondxmlhttp.responseText;
+                            message += grabNamesFromJsonArray(xmlhttp.responseText);
+                            message += grabNamesFromJsonArray(secondxmlhttp.responseText);
                             var toDelete = confirm(message);
                             if (toDelete) {
                                 var deletexmlhttp = new XMLHttpRequest();
@@ -524,6 +524,11 @@ getTreeView = function(dagrId) {
 };
 
 
+/* ===================================================
+ * BULK LOAD
+ * ===================================================
+ */
+
 var bulkLoadField = Ext.create('Ext.form.field.Text', {
     id: "bulkLoadField"
 });
@@ -540,9 +545,7 @@ var bulkLoadButton = Ext.create('Ext.Button', {
                     alert(xmlhttp.responseText);
                 } else
                 {
-                    var newTab = initPanel(xmlhttp.responseText);
-                    tabInterface.add(newTab);
-                    tabInterface.setActiveTab(newTab);
+                    initPanel(xmlhttp.responseText);
                 }
             }
         };
@@ -552,6 +555,52 @@ var bulkLoadButton = Ext.create('Ext.Button', {
     }
 });
 
-formatString = function(str) {
-    return str.replace(/@@@/g, '<br>');
+/* ===================================================
+ * GRID window / search result formatting
+ * ===================================================
+ */
+
+createGridStore = function() {
+    var store = Ext.create('Ext.data.Store', {
+        model: 'SingleDagrModel',
+        proxy: {
+            type: 'memory',
+            reader: {
+                type: 'json',
+                root: 'items'
+            }
+        }
+    });
+    return store;
+};
+
+createGridWindow = function(title, jsonString) {
+    var results = Ext.create('Ext.window.Window', {
+        title: title,
+        height: 600,
+        width: 800,
+        layout: 'fit',
+        items: [Ext.create('Ext.grid.Panel', {
+                store: createGridStore(),
+                columns: [
+                    {text: 'Name', dataIndex: 'name', flex: 1},
+                    {text: 'Guid', dataIndex: 'guid'},
+                    {text: 'Date', dataIndex: 'date'},
+                    {text: 'Path', dataIndex: 'path'}
+                ]
+            })]
+    });
+    var dagrArray = eval('(' + jsonString + ')');
+    var gridStore = results.child('panel').getStore();
+    gridStore.loadData(dagrArray['items'], true);
+    return results;
+};
+
+grabNamesFromJsonArray = function(dagrList) {
+    var jsonArr = eval('(' + dagrList + ')');
+    var nameArr = '';
+    for(var i = 0; i < jsonArr['items'].length; i++) {
+        nameArr += jsonArr['items'][i]['name'] + '\n';
+    }
+    return nameArr;
 };

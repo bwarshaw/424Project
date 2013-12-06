@@ -18,13 +18,13 @@ insert into users values ('bill', '7cbe5bc1612c30556bf16e83a5d61e4833dbc09755ccf
 
 
 create table dagrs(
-	guid	 varchar(256) not null primary key,
-	name	 varchar(256) not null,
+	guid	 varchar(100) not null primary key,
+	name	 varchar(100) not null,
 	type	 varchar(10) not null,
-	path	 varchar(256),
+	path	 varchar(100),
 	date	 bigint not null,
 	size	 int,
-	annotations	 varchar(256) not null
+	annotations	 varchar(200) not null
 );
 
 
