@@ -25,7 +25,6 @@ Ext.onReady(function() {
     var initConnReq = new XMLHttpRequest();
     initConnReq.open("POST", url + "initConnection", false);
     initConnReq.send();
-
     Ext.tip.QuickTipManager.init();  // enable tooltips
 
     tabInterface = Ext.create('Ext.tab.Panel', {

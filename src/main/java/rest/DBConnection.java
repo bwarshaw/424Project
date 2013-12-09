@@ -83,6 +83,7 @@ public class DBConnection {
 
             s.close();
         } catch (SQLException sqe) {
+            System.out.println(child.dbInputString());
             Webservice.logger.log(Level.SEVERE, null, sqe);
             return false;
         }

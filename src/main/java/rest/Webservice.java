@@ -35,6 +35,7 @@ public class Webservice {
     @Path("/initConnection")
     public void initConnection() {
         dbConn = new DBConnection("root", "root", "jdbc:mysql://localhost/MMDA");
+        LocalUploader.clearCache();
     }
 
     /*
@@ -334,15 +335,5 @@ public class Webservice {
         JSONObject wrapper = new JSONObject();
         wrapper.put("items", itemsArr);
         return wrapper.toString();
-    }
-
-    @Override
-    protected void finalize() {
-        try {
-            dbConn.conn.close();
-            super.finalize();
-        } catch (Throwable t) {
-            logger.log(Level.SEVERE, null, t);
-        }
     }
 }

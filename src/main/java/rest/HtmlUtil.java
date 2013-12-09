@@ -54,7 +54,11 @@ public class HtmlUtil {
     }
 
     private static String findKeywordsInPath(Document doc) {
-        String keywords = doc.select("meta[name=keywords]").first().attr("content");
+        Element meta = doc.select("meta[name=keywords]").first();
+        String keywords = "";
+        if (meta != null) {
+            keywords = doc.select("meta[name=keywords]").first().attr("content");
+        }
         String title = doc.title() + " ";
         String annotations = keywords + title;
         int max = 256;
