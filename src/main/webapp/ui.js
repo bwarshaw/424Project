@@ -29,6 +29,7 @@ Ext.onReady(function() {
     Ext.tip.QuickTipManager.init();  // enable tooltips
 
     tabInterface = Ext.create('Ext.tab.Panel', {
+        layoutOnTabChange: true,
         renderTo: document.body,
         items: [{
                 title: 'User Interface',
@@ -106,11 +107,11 @@ var removeDuplicatesButton = Ext.create('Ext.Button', {
         {
             if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
             {
-                for (var treeId in selections) {
-                    var tree = Ext.getCmp(treeId);
-                    var dagrId = treeId.substring(8);
-                    tree.getStore().setRootNode(getTreeView(dagrId));
-                }
+//                for (var treeId in selections) {
+//                    var tree = Ext.getCmp(treeId);
+//                    var dagrId = treeId.substring(8);
+//                    tree.getStore().setRootNode(getTreeView(dagrId));
+//                }
                 Ext.create('Ext.window.Window', {
                     title: 'Records Condensed',
                     height: 450,
@@ -458,9 +459,9 @@ createDeleteDagrButton = function() {
                             var message = 'Deleting this DAGR will affect the following DAGRs.  Continue?';
                             message += grabNamesFromJsonArray(xmlhttp.responseText);
                             message += grabNamesFromJsonArray(secondxmlhttp.responseText);
-                            if (message.length > 600) {
-                                message = message.substring(0, 600);
-                                message += '\n ... '
+                            if (message.length > 2000) {
+                                message = message.substring(0, 2000);
+                                message += '\n ... ';
                             }
                             var toDelete = confirm(message);
                             if (toDelete) {
@@ -657,6 +658,6 @@ grabNamesFromJsonArray = function(dagrList) {
 getDocViewerHtml = function(path) {
     var html = '<iframe src="http://docs.google.com/viewer?url=';
     html += encodeURIComponent(path);
-    html += '&embedded=true" width="600" height="780" style="border: none;"></iframe>';
+    html += '&embedded=true" width="850" height="780" style="border: none;"></iframe>';
     return html;
 };

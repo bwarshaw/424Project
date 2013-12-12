@@ -318,7 +318,7 @@ public class Webservice {
         StringBuilder encoded = new StringBuilder("");
         for (String s : strings) {
             encoded.append(s);
-            encoded.append("@@@");
+            encoded.append("\n");
         }
         return encoded.toString();
     }
