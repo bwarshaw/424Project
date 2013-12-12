@@ -100,6 +100,17 @@ public class Webservice {
         }
         return jsonify(dbConn.buildTreeView(root.guid, getUser()));
     }
+    
+    /*
+    Loads a local file into a public cache so that Google Docs viewer can see it
+    */
+    @POST
+    @Path("/cacheDagr") 
+    public String cacheDagr(String path) {
+        LocalUploader.uploadFile(path);
+        String[] components = path.split("/");
+        return components[components.length - 1];
+    }
 
     /*   search db based on criteria passed
      return a list of dagrs matching criteria to UI  */
@@ -152,7 +163,7 @@ public class Webservice {
     public String saveHtmlFromBrowser(String html) {
         SimpleDateFormat df = new SimpleDateFormat("yyyy_MM_dd--HH:mm:ss");
         String date = df.format(System.currentTimeMillis());
-        String pathName = "/home/bwarshaw/htmlwrites/" + getUser() + "_" + date + ".html";
+        String pathName = "/home/bwarshaw/Projects/CMSC424/htmlwrites/" + getUser() + "_" + date + ".html";
         try {
             PrintWriter wtr = new PrintWriter(new File(pathName));
             wtr.println(html);

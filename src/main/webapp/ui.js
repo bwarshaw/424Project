@@ -1,5 +1,6 @@
 var tabInterface;
 var url = "http://localhost:8084/MMDA424/rest/webservice/";
+var host = "http://129.2.239.234:8084/MMDA424/localWrites/";
 var selections = new Array();
 
 Ext.define('TreeModel', {
@@ -284,12 +285,22 @@ function initPanel(dagrData) {
         items: [createAddDagrButton(), createAddDagrField(guid),
             createAnnotateDagrButton(), createAnnotateDagrField(guid),
             createReachedDagrsButton(), createReachingDagrsButton(),
-            createRenameDagrButton(), createRenameDagrField(guid), createDeleteDagrButton(), tree]
+            createRenameDagrButton(), createRenameDagrField(guid), createDeleteDagrButton(),
+            tree, createDocViewerPanel(guid)]
     });
     tabInterface.add(panel);
     tabInterface.setActiveTab(panel);
 }
 ;
+
+createDocViewerPanel = function(dagrId) {
+    var docViewerPanel = Ext.create('Ext.panel.Panel', {
+        id: 'docViewer' + dagrId,
+        title: 'Document Viewer',
+        items: []
+    });
+    return docViewerPanel;
+};
 
 
 createAddDagrField = function(dagrId) {
@@ -447,6 +458,10 @@ createDeleteDagrButton = function() {
                             var message = 'Deleting this DAGR will affect the following DAGRs.  Continue?';
                             message += grabNamesFromJsonArray(xmlhttp.responseText);
                             message += grabNamesFromJsonArray(secondxmlhttp.responseText);
+                            if (message.length > 600) {
+                                message = message.substring(0, 600);
+                                message += '\n ... '
+                            }
                             var toDelete = confirm(message);
                             if (toDelete) {
                                 var deletexmlhttp = new XMLHttpRequest();
@@ -498,8 +513,36 @@ createTreeView = function(dagrId, jsonData) {
         rootVisible: false,
         listeners: {
             'select': function(a, record, b, c) {
+                var parentPanel = this.up('panel');
                 selections[this.getId()] = record.get('guid');
-//                alert(record.get('text') + ' -> ' + record.get('guid'));
+                if (record.get('text').substring(0, 4) === 'http') {
+                    parentPanel.remove(Ext.getCmp('docViewer' + parentPanel.getId()));
+                    var newViewer = createDocViewerPanel(parentPanel.getId());
+                    newViewer.add({
+                        xtype: 'panel',
+                        html: getDocViewerHtml(record.get('text'))
+                    });
+                    parentPanel.add(newViewer);
+                }
+                else {
+                    var xmlhttp = new XMLHttpRequest();
+                    xmlhttp.onreadystatechange = function()
+                    {
+                        if (xmlhttp.readyState === 4 && xmlhttp.status === 200)
+                        {
+                            parentPanel.remove(Ext.getCmp('docViewer' + parentPanel.getId()));
+                            var newViewer = createDocViewerPanel(parentPanel.getId());
+                            newViewer.add({
+                                xtype: 'panel',
+                                html: getDocViewerHtml(host + xmlhttp.responseText)
+                            });
+                            parentPanel.add(newViewer);
+
+                        }
+                    };
+                    xmlhttp.open("POST", url + "cacheDagr", true);
+                    xmlhttp.send(record.get('text'));
+                }
             }
         }
     });
@@ -598,8 +641,22 @@ createGridWindow = function(title, jsonString) {
 grabNamesFromJsonArray = function(dagrList) {
     var jsonArr = eval('(' + dagrList + ')');
     var nameArr = '';
-    for(var i = 0; i < jsonArr['items'].length; i++) {
+    for (var i = 0; i < jsonArr['items'].length; i++) {
         nameArr += jsonArr['items'][i]['name'] + '\n';
     }
     return nameArr;
+};
+
+
+/*
+ * ===========================================================
+ * Document viewer
+ * ===========================================================
+ */
+
+getDocViewerHtml = function(path) {
+    var html = '<iframe src="http://docs.google.com/viewer?url=';
+    html += encodeURIComponent(path);
+    html += '&embedded=true" width="600" height="780" style="border: none;"></iframe>';
+    return html;
 };

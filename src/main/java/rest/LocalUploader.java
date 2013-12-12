@@ -15,7 +15,7 @@ import org.apache.commons.io.FileUtils;
  */
 public class LocalUploader {
 
-    static File cache = new File("/home/bwarshaw/NetBeansProjects/MMDA424/src/main/webapp/localWrites");
+    static File cache = new File("/home/bwarshaw/Projects/CMSC424/MMDA424/src/main/webapp/localWrites");
 
     public static void clearCache() {
         try {
@@ -25,12 +25,13 @@ public class LocalUploader {
         }
     }
 
-    public void uploadFile(String path) {
+    public static void uploadFile(String path) {
         File file = new File(path);
         try {
-            FileUtils.copyFileToDirectory(cache, file);
+            FileUtils.copyFileToDirectory(file, cache);
         } catch (IOException ex) {
             Webservice.logger.log(Level.SEVERE, null, ex);
         }
+        Webservice.logger.log(Level.INFO, "Cached {0}", path);
     }
 }
